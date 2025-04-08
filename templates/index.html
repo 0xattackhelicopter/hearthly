@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>HEARTHLY</title>
+    </head>
+    <body>
+        <h1>HEARTHLY</h1>
+        <button onclick="startRecording()">Start Talking</button>
+        <button onclick="stopRecording()">Stop Talking</button>
+        <audio id="audioOutput" controls autoplay></audio>
+        <div id="status">Status: Not connected</div>
+        <p id="hearthlyTranscript" style="color: black; font-size: 16px;">Hearthly: </p>
+        <script>
+            let mediaRecorder;
+            let audioChunks = [];
+
+            async function startRecording() {
+                try {
+                    document.getElementById("status").innerText = "Status: Recording...";
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = function(e) {
+                        audioChunks.push(e.data);
+                    };
+                    mediaRecorder.onstop = async function() {
+                        document.getElementById("status").innerText = "Status: Processing...";
+                        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                        const reader = new FileReader();
+                        reader.readAsDataURL(audioBlob);
+                        reader.onloadend = async function() {
+                            const base64String = reader.result.split(",")[1];
+                            try {
+                                const response = await fetch("/process-audio", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ audio: base64String })
+                                });
+                                const data = await response.json();
+                                if (data.audio) {
+                                    const audio = document.getElementById("audioOutput");
+                                    audio.src = "data:audio/mp3;base64," + data.audio;
+                                    audio.play();
+                                    document.getElementById("status").innerText = "Status: Playing response";
+                                }
+                                if (data.transcript) {
+                                    const element = document.getElementById("hearthlyTranscript");
+                                    if (element) {
+                                        element.innerHTML = "Hearthly: " + (data.transcript || "Thinking...");
+                                    }
+                                }
+                            } catch (error) {
+                                document.getElementById("status").innerText = "Status: Error - " + error.message;
+                            }
+                        };
+                        audioChunks = [];
+                    };
+                    mediaRecorder.start();
+                } catch (error) {
+                    document.getElementById("status").innerText = "Status: Error - " + error.message;
+                }
+            }
+
+            function stopRecording() {
+                document.getElementById("status").innerText = "Status: Stopping...";
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        </script>
+    </body>
+</html>
