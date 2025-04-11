@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hearthly</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        #language-select { margin: 10px; padding: 5px; }
+        #genz-toggle { margin: 10px; }
+        #record-btn, #stop-btn { padding: 10px 20px; margin: 10px; }
+        #response { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Hearthly - Your Empathetic Therapist</h1>
+    <select id="language-select">
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="pa">Punjabi</option>
+    </select>
+    <div>
+        <label for="genz-toggle">Gen Z Mode</label>
+        <input type="checkbox" id="genz-toggle" />
+    </div>
+    <br>
+    <button id="record-btn">Record</button>
+    <button id="stop-btn" disabled>Stop</button>
+    <div id="response">
+        <p><strong>Transcript:</strong> <span id="transcript"></span></p>
+        <audio id="audio-response" controls></audio>
+    </div>
+
+    <script>
+        const recordBtn = document.getElementById('record-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const languageSelect = document.getElementById('language-select');
+        const genzToggle = document.getElementById('genz-toggle');
+        const transcriptEl = document.getElementById('transcript');
+        const audioResponseEl = document.getElementById('audio-response');
+        let mediaRecorder;
+        let audioChunks = [];
+
+        recordBtn.addEventListener('click', async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result.split(',')[1];
+                    const language = languageSelect.value;
+                    const genzMode = genzToggle.checked;
+
+                    // Send audio, language, and genz_mode to backend
+                    const response = await fetch('/process-audio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            audio: base64Audio, 
+                            language, 
+                            genz_mode: genzMode 
+                        })
+                    });
+
+                    const data = await response.json();
+                    transcriptEl.textContent = data.transcript;
+                    audioResponseEl.src = `data:audio/mp3;base64,${data.audio}`;
+                    audioResponseEl.play();
+                };
+            };
+
+            mediaRecorder.start();
+            recordBtn.disabled = true;
+            stopBtn.disabled = false;
+        });
+
+        stopBtn.addEventListener('click', () => {
+            mediaRecorder.stop();
+            recordBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>
