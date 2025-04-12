@@ -7,21 +7,60 @@
     <style>
         body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
         #language-select { margin: 10px; padding: 5px; }
-        #genz-toggle { margin: 10px; }
+        #genz-toggle, #sarcastic-toggle, #shenanigan-toggle, #seductive-toggle { margin: 10px; }
         #record-btn, #stop-btn { padding: 10px 20px; margin: 10px; }
         #response { margin-top: 20px; }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 220px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            padding: 5px;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -110px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
-    <h1>Hearthly - Your Empathetic Therapist</h1>
+    <h1>Hearthly - Your Unfiltered Therapist</h1>
     <select id="language-select">
         <option value="en">English</option>
         <option value="hi">Hindi</option>
         <option value="pa">Punjabi</option>
     </select>
     <div>
-        <label for="genz-toggle">Gen Z Mode</label>
+        <label for="genz-toggle">Gen Z Slang</label>
         <input type="checkbox" id="genz-toggle" />
+    </div>
+    <div class="tooltip">
+        <label for="sarcastic-toggle">Sarcastic Mode</label>
+        <input type="checkbox" id="sarcastic-toggle" />
+        <span class="tooltiptext">Swaps empathy for vicious, savage sarcasm—expect brutal mockery and dark, demeaning jabs.</span>
+    </div>
+    <div class="tooltip">
+        <label for="shenanigan-toggle">Shenanigan Mode</label>
+        <input type="checkbox" id="shenanigan-toggle" />
+        <span class="tooltiptext">Ditches warmth for bitter apathy and cruel disdain—slow, venomous, and darkly demeaning.</span>
+    </div>
+    <div class="tooltip">
+        <label for="seductive-toggle">Seductive Mode</label>
+        <input type="checkbox" id="seductive-toggle" />
+        <span class="tooltiptext">Trades calm for sultry, flirty charm—velvet words, teasing allure, and a hypnotic, playful edge.</span>
     </div>
     <br>
     <button id="record-btn">Record</button>
@@ -36,21 +75,48 @@
         const stopBtn = document.getElementById('stop-btn');
         const languageSelect = document.getElementById('language-select');
         const genzToggle = document.getElementById('genz-toggle');
+        const sarcasticToggle = document.getElementById('sarcastic-toggle');
+        const shenaniganToggle = document.getElementById('shenanigan-toggle');
+        const seductiveToggle = document.getElementById('seductive-toggle');
         const transcriptEl = document.getElementById('transcript');
         const audioResponseEl = document.getElementById('audio-response');
         let mediaRecorder;
         let audioChunks = [];
 
+        // Ensure only one mode is active
+        sarcasticToggle.addEventListener('change', () => {
+            if (sarcasticToggle.checked) {
+                shenaniganToggle.checked = false;
+                seductiveToggle.checked = false;
+            }
+        });
+        shenaniganToggle.addEventListener('change', () => {
+            if (shenaniganToggle.checked) {
+                sarcasticToggle.checked = false;
+                seductiveToggle.checked = false;
+            }
+        });
+        seductiveToggle.addEventListener('change', () => {
+            if (seductiveToggle.checked) {
+                sarcasticToggle.checked = false;
+                shenaniganToggle.checked = false;
+            }
+        });
+
         recordBtn.addEventListener('click', async () => {
+            console.log("Record button clicked");
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            audioChunks = [];
+            console.log("Microphone access granted");
+           (mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })),
+                (audioChunks = []);
 
             mediaRecorder.ondataavailable = (e) => {
                 audioChunks.push(e.data);
+                console.log("Audio chunk received");
             };
 
             mediaRecorder.onstop = async () => {
+                console.log("Recording stopped");
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
@@ -58,19 +124,27 @@
                     const base64Audio = reader.result.split(',')[1];
                     const language = languageSelect.value;
                     const genzMode = genzToggle.checked;
+                    const sarcasticMode = sarcasticToggle.checked;
+                    const shenaniganMode = shenaniganToggle.checked;
+                    const seductiveMode = seductiveToggle.checked;
 
-                    // Send audio, language, and genz_mode to backend
+                    console.log("Sending to backend:", { language, genzMode, sarcasticMode, shenaniganMode, seductiveMode });
+
                     const response = await fetch('/process-audio', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             audio: base64Audio, 
                             language, 
-                            genz_mode: genzMode 
+                            genz_mode: genzMode,
+                            sarcastic_mode: sarcasticMode,
+                            shenanigan_mode: shenaniganMode,
+                            seductive_mode: seductiveMode 
                         })
                     });
 
                     const data = await response.json();
+                    console.log("Response received:", data);
                     transcriptEl.textContent = data.transcript;
                     audioResponseEl.src = `data:audio/mp3;base64,${data.audio}`;
                     audioResponseEl.play();
@@ -78,6 +152,7 @@
             };
 
             mediaRecorder.start();
+            console.log("Recording started");
             recordBtn.disabled = true;
             stopBtn.disabled = false;
         });
@@ -86,6 +161,7 @@
             mediaRecorder.stop();
             recordBtn.disabled = false;
             stopBtn.disabled = true;
+            console.log("Stop button clicked");
         });
     </script>
 </body>
